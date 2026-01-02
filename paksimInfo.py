@@ -140,7 +140,7 @@ def respond_json(obj, pretty=False):
 # -------------------------
 @app.route("/", methods=["GET"])
 def home():
-    sample_get = url_for("api_lookup_get", _external=False) + "?query=03068060398&pretty=1"
+    sample_get = url_for("api_lookup_get", _external=False) + "?query=03xxxxxx&pretty=1"
     return f"""
 <!DOCTYPE html>
 <html>
@@ -201,7 +201,7 @@ def home():
             </li>
             <li>
                 POST <code>/api/lookup</code><br>
-                JSON: <code>{{"query":"03068060398"}}</code>
+                JSON: <code>{{"query":"03xx"}}</code>
             </li>
         </ul>
     </div>
