@@ -21,21 +21,47 @@ LAST_CALL = {"ts": 0.0}
 DEVELOPER = "Haseeb Sahil"
 
 # -------------------------
-# Helpers
+# Helpers (FIXED)
 # -------------------------
 def is_mobile(value: str) -> bool:
-    return bool(re.fullmatch(r"92\d{9,12}", (value or "").strip()))
+    # International: 92XXXXXXXXXX (12 digits)
+    return bool(re.fullmatch(r"92\d{10}", value))
+
+def is_local_mobile(value: str) -> bool:
+    # Pakistani local: 03XXXXXXXXX (11 digits)
+    return bool(re.fullmatch(r"03\d{9}", value))
 
 def is_cnic(value: str) -> bool:
-    return bool(re.fullmatch(r"\d{13}", (value or "").strip()))
+    return bool(re.fullmatch(r"\d{13}", value))
+
+def normalize_mobile(value: str) -> str:
+    value = value.strip()
+
+    # Already international
+    if is_mobile(value):
+        return value
+
+    # Convert 03XXXXXXXXX → 92XXXXXXXXXX
+    if is_local_mobile(value):
+        return "92" + value[1:]
+
+    return value
 
 def classify_query(value: str):
     v = value.strip()
-    if is_mobile(v):
-        return "mobile", v
+
+    # CNIC
     if is_cnic(v):
         return "cnic", v
-    raise ValueError("Invalid query. Use mobile (92...) or CNIC (13 digits).")
+
+    # Mobile (03 or 92)
+    normalized = normalize_mobile(v)
+    if is_mobile(normalized):
+        return "mobile", normalized
+
+    raise ValueError(
+        "Invalid query. Use CNIC (13 digits) or mobile (03XXXXXXXXX / 92XXXXXXXXXX)."
+    )
 
 def rate_limit_wait():
     now = time.time()
@@ -105,10 +131,9 @@ def respond_json(obj, pretty=False):
 # -------------------------
 # Routes
 # -------------------------
-
 @app.route("/", methods=["GET"])
 def home():
-    sample_get = url_for("api_lookup_get", _external=False) + "?query=923323312487&pretty=1"
+    sample_get = url_for("api_lookup_get", _external=False) + "?query=03068060398&pretty=1"
     return f"""
 <!DOCTYPE html>
 <html>
@@ -155,7 +180,8 @@ def home():
 
         <h3>🚀 Features</h3>
         <ul>
-            <li>Instant Mobile & CNIC Search</li>
+            <li>Accepts 03XXXXXXXXX & 92XXXXXXXXXX</li>
+            <li>CNIC Lookup Supported</li>
             <li>JSON API Response</li>
             <li>High-Speed Live Fetch</li>
         </ul>
@@ -163,15 +189,12 @@ def home():
         <h3>🧪 Endpoints</h3>
         <ul>
             <li>
-                GET <code>/api/lookup?query=92XXXXXXXXX</code><br>
+                GET <code>/api/lookup?query=03XXXXXXXXX</code><br>
                 Example: <a href="{sample_get}">{sample_get}</a>
             </li>
             <li>
-                GET <code>/api/lookup/&lt;value&gt;</code>
-            </li>
-            <li>
                 POST <code>/api/lookup</code><br>
-                JSON: <code>{{"query":"92XXXXXXXXX"}}</code>
+                JSON: <code>{{"query":"03068060398"}}</code>
             </li>
         </ul>
     </div>
