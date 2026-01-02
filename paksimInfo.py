@@ -17,7 +17,7 @@ ALLOW_UPSTREAM = True
 MIN_INTERVAL = float(os.getenv("MIN_INTERVAL", "1.0"))
 LAST_CALL = {"ts": 0.0}
 
-# Developer Copyright
+# Developer
 DEVELOPER = "Haseeb Sahil"
 
 # -------------------------
@@ -35,7 +35,7 @@ def classify_query(value: str):
         return "mobile", v
     if is_cnic(v):
         return "cnic", v
-    raise ValueError("Invalid query. Use mobile with country code (92...) or CNIC (13 digits).")
+    raise ValueError("Invalid query. Use mobile (92...) or CNIC (13 digits).")
 
 def rate_limit_wait():
     now = time.time()
@@ -47,13 +47,16 @@ def rate_limit_wait():
 def fetch_upstream(query_value: str):
     if not ALLOW_UPSTREAM:
         raise PermissionError("Upstream fetching disabled.")
+
     rate_limit_wait()
 
     session = requests.Session()
     headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/140.0.0.0 Safari/537.36"),
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/140.0.0.0 Safari/537.36"
+        ),
         "Referer": TARGET_BASE.rstrip("/") + "/",
         "Accept-Language": "en-US,en;q=0.9",
     }
@@ -84,9 +87,7 @@ def parse_table(html: str):
             "cnic": cols[2] if len(cols) > 2 else None,
             "address": cols[3] if len(cols) > 3 else None,
         })
-
     return results
-
 
 def make_response_object(query, qtype, results):
     return {
@@ -94,14 +95,12 @@ def make_response_object(query, qtype, results):
         "query_type": qtype,
         "results_count": len(results),
         "results": results,
-        "developer": DEVELOPER  
+        "developer": DEVELOPER
     }
-
 
 def respond_json(obj, pretty=False):
     text = json.dumps(obj, indent=2 if pretty else None, ensure_ascii=False)
     return Response(text, mimetype="application/json; charset=utf-8")
-
 
 # -------------------------
 # Routes
@@ -110,18 +109,75 @@ def respond_json(obj, pretty=False):
 @app.route("/", methods=["GET"])
 def home():
     sample_get = url_for("api_lookup_get", _external=False) + "?query=923323312487&pretty=1"
-    return (
-        "<h2>Pakistan Number/CNIC Info API - Live Mode</h2>"
-        f"<p>Mode: LIVE | Developer: {DEVELOPER}</p>"
-        "<p>Use GET or POST:</p>"
-        f"<ul>"
-        f"<li>GET /api/lookup?query=&lt;value&gt;&amp;pretty=1 — example: "
-        f"<a href='{sample_get}'>{sample_get}</a></li>"
-        f"<li>GET /api/lookup/&lt;value&gt; — example: /api/lookup/923323312487</li>"
-        f"<li>POST /api/lookup with JSON <code>{{\"query\":\"923...\"}}</code></li>"
-        f"</ul>"
-    )
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HS Pakistan SIM & CNIC Intelligence API</title>
+    <style>
+        body {{
+            background: #0b0f19;
+            color: #e5e7eb;
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 30px;
+        }}
+        .box {{
+            max-width: 820px;
+            margin: auto;
+            background: #111827;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(0,0,0,0.6);
+        }}
+        h1 {{ color: #38bdf8; }}
+        h3 {{ color: #a5b4fc; }}
+        .status {{ color: #22c55e; font-weight: bold; }}
+        .dev {{ color: #facc15; }}
+        ul {{ line-height: 1.9; }}
+        code {{
+            background: #020617;
+            padding: 5px 8px;
+            border-radius: 6px;
+            color: #38bdf8;
+        }}
+        a {{ color: #38bdf8; text-decoration: none; }}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>🔍 HS Pakistan SIM & CNIC Intelligence API</h1>
+        <p>⚡ <b>Live Lookup Engine</b></p>
 
+        <p>
+            🟢 Status: <span class="status">LIVE</span><br>
+            👑 Developer: <span class="dev">{DEVELOPER}</span>
+        </p>
+
+        <h3>🚀 Features</h3>
+        <ul>
+            <li>Instant Mobile & CNIC Search</li>
+            <li>JSON API Response</li>
+            <li>High-Speed Live Fetch</li>
+        </ul>
+
+        <h3>🧪 Endpoints</h3>
+        <ul>
+            <li>
+                GET <code>/api/lookup?query=92XXXXXXXXX</code><br>
+                Example: <a href="{sample_get}">{sample_get}</a>
+            </li>
+            <li>
+                GET <code>/api/lookup/&lt;value&gt;</code>
+            </li>
+            <li>
+                POST <code>/api/lookup</code><br>
+                JSON: <code>{{"query":"92XXXXXXXXX"}}</code>
+            </li>
+        </ul>
+    </div>
+</body>
+</html>
+"""
 
 @app.route("/api/lookup", methods=["GET"])
 def api_lookup_get():
@@ -133,43 +189,27 @@ def api_lookup_get():
 
     try:
         qtype, normalized = classify_query(q)
-    except ValueError as e:
-        return respond_json({"error": "Invalid query", "detail": str(e), "developer": DEVELOPER}, pretty), 400
-
-    try:
         html = fetch_upstream(normalized)
+        results = parse_table(html)
+        return respond_json(make_response_object(normalized, qtype, results), pretty)
     except Exception as e:
         return respond_json({"error": "Fetch failed", "detail": str(e), "developer": DEVELOPER}, pretty), 500
-
-    results = parse_table(html)
-    obj = make_response_object(normalized, qtype, results)
-    return respond_json(obj, pretty)
-
 
 @app.route("/api/lookup/<path:q>", methods=["GET"])
 def api_lookup_path(q):
     pretty = request.args.get("pretty") in ("1", "true", "True")
-
     try:
         qtype, normalized = classify_query(q)
-    except ValueError as e:
-        return respond_json({"error": "Invalid query", "detail": str(e), "developer": DEVELOPER}, pretty), 400
-
-    try:
         html = fetch_upstream(normalized)
+        results = parse_table(html)
+        return respond_json(make_response_object(normalized, qtype, results), pretty)
     except Exception as e:
         return respond_json({"error": "Fetch failed", "detail": str(e), "developer": DEVELOPER}, pretty), 500
-
-    results = parse_table(html)
-    obj = make_response_object(normalized, qtype, results)
-    return respond_json(obj, pretty)
-
 
 @app.route("/api/lookup", methods=["POST"])
 def api_lookup_post():
     pretty = request.args.get("pretty") in ("1", "true", "True")
     data = request.get_json(force=True, silent=True) or {}
-
     q = data.get("query") or data.get("number") or data.get("value")
 
     if not q:
@@ -177,23 +217,15 @@ def api_lookup_post():
 
     try:
         qtype, normalized = classify_query(q)
-    except ValueError as e:
-        return respond_json({"error": "Invalid query", "detail": str(e), "developer": DEVELOPER}, pretty), 400
-
-    try:
         html = fetch_upstream(normalized)
+        results = parse_table(html)
+        return respond_json(make_response_object(normalized, qtype, results), pretty)
     except Exception as e:
         return respond_json({"error": "Fetch failed", "detail": str(e), "developer": DEVELOPER}, pretty), 500
-
-    results = parse_table(html)
-    obj = make_response_object(normalized, qtype, results)
-    return respond_json(obj, pretty)
-
 
 @app.route("/health", methods=["GET"])
 def health():
     return respond_json({"status": "ok", "developer": DEVELOPER})
-
 
 # -------------------------
 # Run
