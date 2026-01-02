@@ -85,7 +85,7 @@ def fetch_upstream(query_value: str):
     return resp.text
 
 # -------------------------
-# ✅ FIXED: Duplicate remover
+# FIXED: Remove duplicate entries while keeping everything else same
 # -------------------------
 def parse_table(html: str):
     soup = BeautifulSoup(html, "html.parser")
@@ -102,16 +102,15 @@ def parse_table(html: str):
 
     for tr in tbody.find_all("tr"):
         cols = [td.get_text(strip=True) for td in tr.find_all("td")]
-
         mobile = cols[0] if len(cols) > 0 else None
         name = cols[1] if len(cols) > 1 else None
         cnic = cols[2] if len(cols) > 2 else None
         address = cols[3] if len(cols) > 3 else None
 
+        # Use a tuple key to remove duplicates (mobile+cnic+name)
         key = (mobile, cnic, name)
         if key in seen:
             continue
-
         seen.add(key)
 
         results.append({
@@ -146,13 +145,66 @@ def home():
 <!DOCTYPE html>
 <html>
 <head>
-<title>HS Pakistan SIM & CNIC Intelligence API</title>
+    <title>HS Pakistan SIM & CNIC Intelligence API</title>
+    <style>
+        body {{
+            background: #0b0f19;
+            color: #e5e7eb;
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 30px;
+        }}
+        .box {{
+            max-width: 820px;
+            margin: auto;
+            background: #111827;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(0,0,0,0.6);
+        }}
+        h1 {{ color: #38bdf8; }}
+        h3 {{ color: #a5b4fc; }}
+        .status {{ color: #22c55e; font-weight: bold; }}
+        .dev {{ color: #facc15; }}
+        ul {{ line-height: 1.9; }}
+        code {{
+            background: #020617;
+            padding: 5px 8px;
+            border-radius: 6px;
+            color: #38bdf8;
+        }}
+        a {{ color: #38bdf8; text-decoration: none; }}
+    </style>
 </head>
-<body style="background:#0b0f19;color:#e5e7eb;font-family:Arial;padding:30px">
-<h1>🔍 HS Pakistan SIM & CNIC Intelligence API</h1>
-<p>🟢 Status: LIVE</p>
-<p>👑 Developer: {DEVELOPER}</p>
-<p>Example: <a href="{sample_get}" style="color:#38bdf8">{sample_get}</a></p>
+<body>
+    <div class="box">
+        <h1>🔍 HS Pakistan SIM & CNIC Intelligence API</h1>
+        <p>⚡ <b>Live Lookup Engine</b></p>
+
+        <p>
+            🟢 Status: <span class="status">LIVE</span><br>
+            👑 Developer: <span class="dev">{DEVELOPER}</span>
+        </p>
+
+        <h3>🚀 Features</h3>
+        <ul>
+            <li>Accepts 03XXXXXXXXX & 92XXXXXXXXXX</li>
+            <li>CNIC Lookup Supported</li>
+            <li>JSON API Response</li>
+            <li>High-Speed Live Fetch</li>
+        </ul>
+
+        <h3>🧪 Endpoints</h3>
+        <ul>
+            <li>
+                GET <code>/api/lookup?query=03XXXXXXXXX</code><br>
+                Example: <a href="{sample_get}">{sample_get}</a>
+            </li>
+            <li>
+                POST <code>/api/lookup</code><br>
+                JSON: <code>{{"query":"03068060398"}}</code>
+            </li>
+        </ul>
+    </div>
 </body>
 </html>
 """
@@ -163,7 +215,7 @@ def api_lookup_get():
     pretty = request.args.get("pretty") in ("1", "true", "True")
 
     if not q:
-        return respond_json({"error": "Use ?query=<mobile or cnic>"}, pretty), 400
+        return respond_json({"error": "Use ?query=<mobile or cnic>", "developer": DEVELOPER}, pretty), 400
 
     try:
         qtype, normalized = classify_query(q)
@@ -171,7 +223,7 @@ def api_lookup_get():
         results = parse_table(html)
         return respond_json(make_response_object(normalized, qtype, results), pretty)
     except Exception as e:
-        return respond_json({"error": str(e)}, pretty), 500
+        return respond_json({"error": "Fetch failed", "detail": str(e), "developer": DEVELOPER}, pretty), 500
 
 @app.route("/api/lookup/<path:q>", methods=["GET"])
 def api_lookup_path(q):
@@ -182,16 +234,16 @@ def api_lookup_path(q):
         results = parse_table(html)
         return respond_json(make_response_object(normalized, qtype, results), pretty)
     except Exception as e:
-        return respond_json({"error": str(e)}, pretty), 500
+        return respond_json({"error": "Fetch failed", "detail": str(e), "developer": DEVELOPER}, pretty), 500
 
 @app.route("/api/lookup", methods=["POST"])
 def api_lookup_post():
     pretty = request.args.get("pretty") in ("1", "true", "True")
     data = request.get_json(force=True, silent=True) or {}
-    q = data.get("query") or data.get("number")
+    q = data.get("query") or data.get("number") or data.get("value")
 
     if not q:
-        return respond_json({"error": "Send JSON {\"query\":\"...\"}"}, pretty), 400
+        return respond_json({"error": "Send JSON {\"query\":\"...\"}", "developer": DEVELOPER}, pretty), 400
 
     try:
         qtype, normalized = classify_query(q)
@@ -199,9 +251,9 @@ def api_lookup_post():
         results = parse_table(html)
         return respond_json(make_response_object(normalized, qtype, results), pretty)
     except Exception as e:
-        return respond_json({"error": str(e)}, pretty), 500
+        return respond_json({"error": "Fetch failed", "detail": str(e), "developer": DEVELOPER}, pretty), 500
 
-@app.route("/health")
+@app.route("/health", methods=["GET"])
 def health():
     return respond_json({"status": "ok", "developer": DEVELOPER})
 
